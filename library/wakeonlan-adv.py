@@ -95,7 +95,7 @@ except ImportError:
 
 def arping(mac, ip, timeout):
     """Arping function takes IP Address or Network, returns nested mac/ip list"""
-    for i in range(timeout/2):
+    for _ in range(timeout/2):
         ans = srp1(Ether(dst=mac)/ARP(pdst=ip), timeout=2, verbose=0)
         if ans: break
     return ans
@@ -111,14 +111,14 @@ def wakeonlan(module, mac, broadcast, port):
 
     # If we don't end up with 12 hexadecimal characters, fail
     if len(mac) != 12:
-        module.fail_json(msg="Incorrect MAC address length: %s" % mac_orig)
+        module.fail_json(msg=f"Incorrect MAC address length: {mac_orig}")
 
     # Test if it converts to an integer, otherwise fail
     try:
         int(mac, 16)
     except ValueError:
-        module.fail_json(msg="Incorrect MAC address format: %s" % mac_orig)
- 
+        module.fail_json(msg=f"Incorrect MAC address format: {mac_orig}")
+
     # Create payload for magic packet
     data = ''
     padding = ''.join(['FFFFFFFFFFFF', mac * 20])
@@ -172,18 +172,16 @@ def main():
         wakeonlan(module, mac, broadcast, port)
 
         # If system was not up, test to see if system comes up
-        if not found_before:
-            found_after = arping(mac, ip, timeout)
-
-            if found_after:
-                module.exit_json(changed=True)
-            else:
-                module.fail_json(msg="System was not detected using arping, either mac=%s/ip=%s is wrong or WoL is not configured." % (mac, ip))
-
-        else:
+        if found_before:
             module.exit_json(changed=False)
 
-    # If check_arp was not enabled, only perform Wake-on-LAN and report change
+        elif found_after := arping(mac, ip, timeout):
+            module.exit_json(changed=True)
+        else:
+            module.fail_json(
+                msg=f"System was not detected using arping, either mac={mac}/ip={ip} is wrong or WoL is not configured."
+            )
+
     else:
         wakeonlan(module, mac, broadcast, port)
         module.exit_json(changed=True)
